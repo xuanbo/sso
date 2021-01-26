@@ -1,0 +1,4 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=tk.fishfish.cas.server.webflow.WebflowConfiguration,\
+tk.fishfish.cas.server.action.ActionsConfiguration,\
+tk.fishfish.cas.server.validation.AccountServiceTicketValidationAuthorizerConfigurer,\
+tk.fishfish.cas.server.authentication.AccountAuthenticationConfiguration

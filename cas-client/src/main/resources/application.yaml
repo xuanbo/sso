@@ -1,0 +1,32 @@
+server:
+  port: 9090
+
+cas:
+  # cas服务端地址
+  server-url-prefix: https://localhost:8443/cas
+  # cas服务端登录地址
+  server-login-url: ${cas.server-url-prefix}/login
+  # 客户端不要用localhost
+  client-host-url: http://127.0.0.1:9090
+  # 认证url
+  authentication-url-patterns:
+    - /cas/*
+  # 校验url
+  request-wrapper-url-patterns:
+    - /*
+  # 对url进行包装，之后就可在request中获取到用户信息
+  validation-url-patterns:
+    - /*
+  # 当前线程中哪些url可以获取到用户信息
+  assertion-thread-local-url-patterns:
+    - /*
+  # 单点退出
+  singleLogout:
+    enabled: true
+# cas服务端登出地址
+server-logout-url: ${cas.server-url-prefix}/logout
+
+logging:
+  level:
+    tk.fishfish.cas: INFO
+    org.jasig.cas.client: DEBUG
