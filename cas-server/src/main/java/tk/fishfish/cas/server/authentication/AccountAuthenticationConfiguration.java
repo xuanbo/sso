@@ -37,7 +37,6 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import javax.sql.DataSource;
 import java.util.Collection;
 import java.util.HashSet;
 
@@ -70,12 +69,12 @@ public class AccountAuthenticationConfiguration {
     @Bean
     @RefreshScope
     @ConditionalOnMissingBean(name = "jdbcAuthenticationHandlers")
-    public Collection<AuthenticationHandler> jdbcAuthenticationHandlers(@Autowired @Qualifier("authJdbcDataSource")  DataSource authJdbcDataSource) {
+    public Collection<AuthenticationHandler> jdbcAuthenticationHandlers() {
         val handlers = new HashSet<AuthenticationHandler>();
         val jdbc = casProperties.getAuthn().getJdbc();
         jdbc.getBind().forEach(b -> handlers.add(bindModeSearchDatabaseAuthenticationHandler(b)));
         jdbc.getEncode().forEach(b -> handlers.add(queryAndEncodeDatabaseAuthenticationHandler(b)));
-        jdbc.getQuery().forEach(b -> handlers.add(queryDatabaseAuthenticationHandler(b, authJdbcDataSource)));
+        jdbc.getQuery().forEach(b -> handlers.add(queryDatabaseAuthenticationHandler(b)));
         jdbc.getSearch().forEach(b -> handlers.add(searchModeSearchDatabaseAuthenticationHandler(b)));
         return handlers;
     }
@@ -103,14 +102,6 @@ public class AccountAuthenticationConfiguration {
 
     @Bean
     @RefreshScope
-    @ConditionalOnMissingBean(name = "authJdbcDataSource")
-    public DataSource authJdbcDataSource() {
-        val jdbc = casProperties.getAuthn().getJdbc();
-        return JpaBeans.newDataSource(jdbc.getQuery().get(0));
-    }
-
-    @Bean
-    @RefreshScope
     @ConditionalOnMissingBean(name = "queryPasswordPolicyConfiguration")
     public PasswordPolicyContext queryPasswordPolicyConfiguration() {
         return new PasswordPolicyContext();
@@ -126,8 +117,8 @@ public class AccountAuthenticationConfiguration {
     @Bean
     @RefreshScope
     @ConditionalOnMissingBean(name = "jdbcAuthenticationEventExecutionPlanConfigurer")
-    public AuthenticationEventExecutionPlanConfigurer jdbcAuthenticationEventExecutionPlanConfigurer(@Autowired @Qualifier("authJdbcDataSource") DataSource authJdbcDataSource) {
-        return plan -> jdbcAuthenticationHandlers(authJdbcDataSource)
+    public AuthenticationEventExecutionPlanConfigurer jdbcAuthenticationEventExecutionPlanConfigurer() {
+        return plan -> jdbcAuthenticationHandlers()
                 .forEach(h -> plan.registerAuthenticationHandlerWithPrincipalResolver(h, defaultPrincipalResolver.getObject()));
     }
 
@@ -148,14 +139,13 @@ public class AccountAuthenticationConfiguration {
         return h;
     }
 
-    private AuthenticationHandler queryDatabaseAuthenticationHandler(final QueryJdbcAuthenticationProperties b, DataSource authJdbcDataSource) {
+    private AuthenticationHandler queryDatabaseAuthenticationHandler(final QueryJdbcAuthenticationProperties b) {
         val attributes = CoreAuthenticationUtils.transformPrincipalAttributesListIntoMultiMap(b.getPrincipalAttributeList());
         log.trace("Created and mapped principal attributes [{}] for [{}]...", attributes, b.getUrl());
 
         // 替换实现
         val h = new AccountAuthenticationHandler(b.getName(), servicesManager.getObject(),
-                jdbcPrincipalFactory(), b.getOrder(),
-                authJdbcDataSource, b.getSql(), b.getFieldPassword(),
+                jdbcPrincipalFactory(), b.getOrder(), JpaBeans.newDataSource(b), b.getSql(), b.getFieldPassword(),
                 b.getFieldExpired(), b.getFieldDisabled(), CollectionUtils.wrap(attributes));
 
         configureJdbcAuthenticationHandler(h, b);

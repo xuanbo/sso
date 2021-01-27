@@ -61,6 +61,11 @@
         </dependency>
         <dependency>
             <groupId>org.apereo.cas</groupId>
+            <artifactId>cas-server-core-authentication-attributes</artifactId>
+            <version>${cas.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apereo.cas</groupId>
             <artifactId>cas-server-core-webflow</artifactId>
             <version>${cas.version}</version>
         </dependency>
@@ -176,6 +181,12 @@
         <dependency>
             <groupId>org.apereo.cas</groupId>
             <artifactId>cas-server-support-validation</artifactId>
+            <version>${cas.version}</version>
+        </dependency>
+        <!-- 审计日志 -->
+        <dependency>
+            <groupId>org.apereo.cas</groupId>
+            <artifactId>cas-server-support-audit-jdbc</artifactId>
             <version>${cas.version}</version>
         </dependency>
 

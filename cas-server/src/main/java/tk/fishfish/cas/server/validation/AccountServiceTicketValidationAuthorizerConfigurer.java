@@ -9,9 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.jdbc.core.JdbcTemplate;
-
-import javax.sql.DataSource;
 
 /**
  * 注册自定义账号服务Ticket认证
@@ -27,14 +24,9 @@ public class AccountServiceTicketValidationAuthorizerConfigurer implements Servi
     @Qualifier("servicesManager")
     private ObjectProvider<ServicesManager> servicesManager;
 
-    @Autowired
-    @Qualifier("authJdbcDataSource")
-    private DataSource authJdbcDataSource;
-
     @Override
     public void configureAuthorizersExecutionPlan(ServiceTicketValidationAuthorizersExecutionPlan plan) {
-        JdbcTemplate jdbcTemplate = new JdbcTemplate(authJdbcDataSource);
-        plan.registerAuthorizer(new AccountServiceTicketValidationAuthorizer(servicesManager.getObject(), jdbcTemplate));
+        plan.registerAuthorizer(new AccountServiceTicketValidationAuthorizer(servicesManager.getObject()));
     }
 
 }

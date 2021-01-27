@@ -3,7 +3,9 @@ package tk.fishfish.cas.server.model;
 import lombok.Data;
 import org.apereo.cas.services.RegexRegisteredService;
 import org.apereo.cas.services.RegisteredService;
+import org.apereo.cas.services.RegisteredServiceAttributeReleasePolicy;
 import org.apereo.cas.services.RegisteredServiceMatchingStrategy;
+import org.apereo.cas.services.ReturnAllAttributeReleasePolicy;
 import org.springframework.validation.annotation.Validated;
 import tk.fishfish.cas.server.services.StartsWithRegisteredServiceMatchingStrategy;
 
@@ -36,6 +38,11 @@ public class RegisteredServiceDTO {
      */
     private RegisteredServiceMatchingStrategy matchingStrategy;
 
+    /**
+     * 属性策略
+     */
+    private RegisteredServiceAttributeReleasePolicy attributeReleasePolicy;
+
     public static RegisteredService convert(RegisteredServiceDTO dto) {
         RegexRegisteredService service = new RegexRegisteredService();
         Optional.ofNullable(dto.id).ifPresent(service::setId);
@@ -43,6 +50,7 @@ public class RegisteredServiceDTO {
         service.setName(dto.name);
         service.setDescription(dto.description);
         service.setMatchingStrategy(new StartsWithRegisteredServiceMatchingStrategy());
+        service.setAttributeReleasePolicy(new ReturnAllAttributeReleasePolicy());
         return service;
     }
 
@@ -53,6 +61,7 @@ public class RegisteredServiceDTO {
         dto.name = service.getName();
         dto.description = service.getDescription();
         dto.matchingStrategy = service.getMatchingStrategy();
+        dto.attributeReleasePolicy = service.getAttributeReleasePolicy();
         return dto;
     }
 

@@ -394,7 +394,6 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import javax.sql.DataSource;
 import java.util.Collection;
 import java.util.HashSet;
 
@@ -427,12 +426,12 @@ public class AccountAuthenticationConfiguration {
     @Bean
     @RefreshScope
     @ConditionalOnMissingBean(name = "jdbcAuthenticationHandlers")
-    public Collection<AuthenticationHandler> jdbcAuthenticationHandlers(@Autowired @Qualifier("authJdbcDataSource")  DataSource authJdbcDataSource) {
+    public Collection<AuthenticationHandler> jdbcAuthenticationHandlers() {
         val handlers = new HashSet<AuthenticationHandler>();
         val jdbc = casProperties.getAuthn().getJdbc();
         jdbc.getBind().forEach(b -> handlers.add(bindModeSearchDatabaseAuthenticationHandler(b)));
         jdbc.getEncode().forEach(b -> handlers.add(queryAndEncodeDatabaseAuthenticationHandler(b)));
-        jdbc.getQuery().forEach(b -> handlers.add(queryDatabaseAuthenticationHandler(b, authJdbcDataSource)));
+        jdbc.getQuery().forEach(b -> handlers.add(queryDatabaseAuthenticationHandler(b)));
         jdbc.getSearch().forEach(b -> handlers.add(searchModeSearchDatabaseAuthenticationHandler(b)));
         return handlers;
     }
@@ -460,14 +459,6 @@ public class AccountAuthenticationConfiguration {
 
     @Bean
     @RefreshScope
-    @ConditionalOnMissingBean(name = "authJdbcDataSource")
-    public DataSource authJdbcDataSource() {
-        val jdbc = casProperties.getAuthn().getJdbc();
-        return JpaBeans.newDataSource(jdbc.getQuery().get(0));
-    }
-
-    @Bean
-    @RefreshScope
     @ConditionalOnMissingBean(name = "queryPasswordPolicyConfiguration")
     public PasswordPolicyContext queryPasswordPolicyConfiguration() {
         return new PasswordPolicyContext();
@@ -483,8 +474,8 @@ public class AccountAuthenticationConfiguration {
     @Bean
     @RefreshScope
     @ConditionalOnMissingBean(name = "jdbcAuthenticationEventExecutionPlanConfigurer")
-    public AuthenticationEventExecutionPlanConfigurer jdbcAuthenticationEventExecutionPlanConfigurer(@Autowired @Qualifier("authJdbcDataSource") DataSource authJdbcDataSource) {
-        return plan -> jdbcAuthenticationHandlers(authJdbcDataSource)
+    public AuthenticationEventExecutionPlanConfigurer jdbcAuthenticationEventExecutionPlanConfigurer() {
+        return plan -> jdbcAuthenticationHandlers()
                 .forEach(h -> plan.registerAuthenticationHandlerWithPrincipalResolver(h, defaultPrincipalResolver.getObject()));
     }
 
@@ -505,14 +496,13 @@ public class AccountAuthenticationConfiguration {
         return h;
     }
 
-    private AuthenticationHandler queryDatabaseAuthenticationHandler(final QueryJdbcAuthenticationProperties b, DataSource authJdbcDataSource) {
+    private AuthenticationHandler queryDatabaseAuthenticationHandler(final QueryJdbcAuthenticationProperties b) {
         val attributes = CoreAuthenticationUtils.transformPrincipalAttributesListIntoMultiMap(b.getPrincipalAttributeList());
         log.trace("Created and mapped principal attributes [{}] for [{}]...", attributes, b.getUrl());
 
         // 替换实现
         val h = new AccountAuthenticationHandler(b.getName(), servicesManager.getObject(),
-                jdbcPrincipalFactory(), b.getOrder(),
-                authJdbcDataSource, b.getSql(), b.getFieldPassword(),
+                jdbcPrincipalFactory(), b.getOrder(), JpaBeans.newDataSource(b), b.getSql(), b.getFieldPassword(),
                 b.getFieldExpired(), b.getFieldDisabled(), CollectionUtils.wrap(attributes));
 
         configureJdbcAuthenticationHandler(h, b);
@@ -554,13 +544,13 @@ package tk.fishfish.cas.server.validation;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apereo.cas.authentication.principal.Service;
 import org.apereo.cas.services.RegisteredService;
 import org.apereo.cas.services.ServicesManager;
 import org.apereo.cas.services.UnauthorizedServiceException;
 import org.apereo.cas.validation.Assertion;
 import org.apereo.cas.validation.ServiceTicketValidationAuthorizer;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
@@ -577,8 +567,6 @@ public class AccountServiceTicketValidationAuthorizer implements ServiceTicketVa
 
     private final ServicesManager servicesManager;
 
-    private final JdbcTemplate jdbcTemplate;
-
     @Override
     public void authorize(HttpServletRequest request, Service service, Assertion assertion) {
         RegisteredService registeredService = servicesManager.findServiceBy(service);
@@ -587,19 +575,13 @@ public class AccountServiceTicketValidationAuthorizer implements ServiceTicketVa
             throw new UnauthorizedServiceException(UnauthorizedServiceException.CODE_UNAUTHZ_SERVICE, "Service is not found in service registry.");
         }
         String username = assertion.getPrimaryAuthentication().getPrincipal().getId();
-        log.debug("检测账号 {} 是否授权服务: {}", username, service.getId());
-        List<String> serviceIds;
-        try {
-            serviceIds = queryGrantServiceIds(username);
-        } catch (Exception e) {
-            log.warn("Query grant services failed", e);
-            throw new UnauthorizedServiceException(UnauthorizedServiceException.CODE_UNAUTHZ_SERVICE, "Query grant services failed.");
-        }
-        for (String serviceId : serviceIds) {
-            if ("*".equals(serviceId)) {
+        List<Object> serviceIds = assertion.getPrimaryAuthentication().getPrincipal().getAttributes().get("serviceIds");
+        log.debug("检测账号 {}-[{}] 是否授权服务: {}", username, ArrayUtils.toString(serviceIds), service.getId());
+        for (Object serviceId : serviceIds) {
+            if ("*".equals(serviceId.toString())) {
                 return;
             }
-            if (registeredService.matches(serviceId)) {
+            if (registeredService.matches(serviceId.toString())) {
                 return;
             }
         }
@@ -607,17 +589,10 @@ public class AccountServiceTicketValidationAuthorizer implements ServiceTicketVa
         throw new UnauthorizedServiceException(UnauthorizedServiceException.CODE_UNAUTHZ_SERVICE, "Service [" + service.getId() + "] is not grant to account: " + username);
     }
 
-    private List<String> queryGrantServiceIds(final String username) {
-        // 查询授权服务
-        return jdbcTemplate.queryForList(
-                "SELECT s.service_Id FROM account_grant_service ags LEFT JOIN regex_registered_service s ON ags.serviceId = s.id where ags.username = ?",
-                new Object[]{username},
-                String.class
-        );
-    }
-
 }
 ```
+
+注意前面创建 Service 时，允许所有的属性返回。
 
 注册自定义配置
 
@@ -633,9 +608,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.jdbc.core.JdbcTemplate;
-
-import javax.sql.DataSource;
 
 /**
  * 注册自定义账号服务Ticket认证
@@ -651,14 +623,85 @@ public class AccountServiceTicketValidationAuthorizerConfigurer implements Servi
     @Qualifier("servicesManager")
     private ObjectProvider<ServicesManager> servicesManager;
 
-    @Autowired
-    @Qualifier("authJdbcDataSource")
-    private DataSource authJdbcDataSource;
-
     @Override
     public void configureAuthorizersExecutionPlan(ServiceTicketValidationAuthorizersExecutionPlan plan) {
-        JdbcTemplate jdbcTemplate = new JdbcTemplate(authJdbcDataSource);
-        plan.registerAuthorizer(new AccountServiceTicketValidationAuthorizer(servicesManager.getObject(), jdbcTemplate));
+        plan.registerAuthorizer(new AccountServiceTicketValidationAuthorizer(servicesManager.getObject()));
+    }
+
+}
+```
+
+### 服务匹配策略
+
+修改匹配策略，只需要当前 url 前缀匹配注册的服务 url 即可。
+
+```java
+package tk.fishfish.cas.server.services;
+
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import org.apache.commons.lang3.StringUtils;
+import org.apereo.cas.authentication.principal.Service;
+import org.apereo.cas.authentication.principal.ServiceMatchingStrategy;
+import org.apereo.cas.util.LoggingUtils;
+
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+
+/**
+ * 前缀匹配
+ *
+ * @author 奔波儿灞
+ * @version 1.0.0
+ */
+@Slf4j
+public class StartWithServiceMatchingStrategy implements ServiceMatchingStrategy {
+
+    @Override
+    public boolean matches(Service service, Service serviceToMatch) {
+        try {
+            val thisUrl = URLDecoder.decode(service.getId(), StandardCharsets.UTF_8.name());
+            val serviceUrl = URLDecoder.decode(serviceToMatch.getId(), StandardCharsets.UTF_8.name());
+            log.debug("Decoded urls and comparing [{}] with [{}]", thisUrl, serviceUrl);
+            return StringUtils.startsWithIgnoreCase(thisUrl, serviceUrl);
+        } catch (final Exception e) {
+            LoggingUtils.error(log, e);
+        }
+        return false;
+    }
+
+}
+```
+
+注册配置：
+
+```java
+package tk.fishfish.cas.server.services;
+
+import org.apereo.cas.authentication.principal.ServiceMatchingStrategy;
+import org.apereo.cas.config.CasCoreConfiguration;
+import org.apereo.cas.configuration.CasConfigurationProperties;
+import org.springframework.boot.autoconfigure.AutoConfigureBefore;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * 服务配置
+ *
+ * @author 奔波儿灞
+ * @version 1.0.0
+ */
+@Configuration("casServicesConfiguration")
+@AutoConfigureBefore(CasCoreConfiguration.class)
+@EnableConfigurationProperties(CasConfigurationProperties.class)
+public class CasServicesConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean(name = "serviceMatchingStrategy")
+    public ServiceMatchingStrategy serviceMatchingStrategy() {
+        return new StartWithServiceMatchingStrategy();
     }
 
 }
