@@ -47,8 +47,8 @@ cas:
   # 单点退出
   singleLogout:
     enabled: true
-# cas服务端登出地址
-server-logout-url: ${cas.server-url-prefix}/logout
+  # cas服务端登出地址
+  server-logout-url: ${cas.server-url-prefix}/logout
 
 logging:
   level:
@@ -87,7 +87,7 @@ public class CasController {
     @Value("${cas.server-login-url}")
     private String serverLoginUrl;
 
-    @Value("${server-logout-url}")
+    @Value("${cas.server-logout-url}")
     private String serverLogoutUrl;
 
     /**
@@ -171,6 +171,32 @@ public class CasExceptionHandlerFilter extends OncePerRequestFilter {
 ![image-20210126175100484](docs/SpringBoot客户端接入/image-20210126175100484.png)
 
 ![image-20210126173623377](docs/SpringBoot客户端接入/image-20210126173623377.png)
+
+### 单点登出回调
+
+对于单点登出后，如果有自定义业务逻辑，比如需要拿到账号做一些额外的操作，此时可以利用提供的 tk.fishfish.cas.client.config.SingleLogoutHandler 接口回调。
+
+```java
+package tk.fishfish.cas.client.config;
+
+/**
+ * 单点登出处理
+ *
+ * @author 奔波儿灞
+ * @version 1.0.0
+ */
+@FunctionalInterface
+public interface SingleLogoutHandler {
+
+    /**
+     * 账号单点登出
+     *
+     * @param username 账号
+     */
+    void logout(String username);
+
+}
+```
 
 ## 服务端
 

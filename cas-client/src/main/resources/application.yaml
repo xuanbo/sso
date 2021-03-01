@@ -23,8 +23,8 @@ cas:
   # 单点退出
   singleLogout:
     enabled: true
-# cas服务端登出地址
-server-logout-url: ${cas.server-url-prefix}/logout
+  # cas服务端登出地址
+  server-logout-url: ${cas.server-url-prefix}/logout
 
 logging:
   level:

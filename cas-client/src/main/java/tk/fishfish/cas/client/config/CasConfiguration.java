@@ -1,10 +1,16 @@
 package tk.fishfish.cas.client.config;
 
 import org.jasig.cas.client.boot.configuration.CasClientConfigurer;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.boot.web.servlet.ServletListenerRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.EventListener;
+import java.util.List;
 
 /**
  * 描述
@@ -17,6 +23,9 @@ public class CasConfiguration implements CasClientConfigurer {
 
     @Value("${cas.server-login-url}")
     private String serverLoginUrl;
+
+    @Autowired(required = false)
+    private List<SingleLogoutHandler> singleLogoutHandlers;
 
     @Override
     @SuppressWarnings("unchecked")
@@ -33,6 +42,15 @@ public class CasConfiguration implements CasClientConfigurer {
         casExceptionHandlerFilter.addUrlPatterns("/*");
         casExceptionHandlerFilter.setOrder(-5);
         return casExceptionHandlerFilter;
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "cas", value = "single-logout.enabled", havingValue = "true")
+    public ServletListenerRegistrationBean<EventListener> singleLogoutHttpSessionListener() {
+        ServletListenerRegistrationBean<EventListener> singleSignOutListener = new ServletListenerRegistrationBean<>();
+        singleSignOutListener.setListener(new SingleLogoutHttpSessionListener(singleLogoutHandlers));
+        singleSignOutListener.setOrder(-5);
+        return singleSignOutListener;
     }
 
 }

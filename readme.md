@@ -2,6 +2,8 @@
 
 基于 CAS 6.3.0 整理相关文档，以及示例代码。
 
+![img.png](docs/login.png)
+
 ## 目录
 
 - [安装CAS](./安装CAS.md)
@@ -20,4 +22,4 @@
 
 最后，如果帮助到了你，你可以请我喝一杯咖啡。
 
-![pay](./docs/pay.png)
+<img src="./docs/pay.png" alt="pay" align=center style="zoom: 25%;" />
